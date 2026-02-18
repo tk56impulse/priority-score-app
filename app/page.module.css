@@ -1,0 +1,42 @@
+.container {
+  max-width: 600px;
+  margin: auto;
+  padding: 24px;
+}
+
+.title {
+  font-size: 1.8rem;
+  margin-bottom: 16px;
+}
+
+.addButton {
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  background-color: #0070f3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.taskCard {
+  border: 1px solid #ddd;
+  padding: 16px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.smallInput {
+  width: 70px;
+}
+
+.fullInput {
+  width: 100%;
+}
