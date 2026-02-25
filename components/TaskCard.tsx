@@ -1,121 +1,131 @@
 // components/TaskCard.tsx
-import { Task } from '../app/page'
-import { calculateScore, Mode } from '../lib/taskLogic'
-import { getDeadlineStatus } from '../lib/taskLogic';
+import { Task, Layer } from '../app/types/task' 
+import { calculateScore } from '../lib/taskLogic'
 
 interface TaskCardProps {
   task: Task
-  mode: Mode
-  onUpdate: (id: string, field: keyof Task, value: string | number) => void
+  onUpdate: (id: string, field: keyof Task, value: string | number | Layer) => void
   onRemove: (id: string) => void
 }
 
-export default function TaskCard({ task, mode, onUpdate, onRemove }: TaskCardProps) {
-  const totalScore = calculateScore(task.emotion, task.reality, mode)
+export default function TaskCard({ task, onUpdate, onRemove }: TaskCardProps) {
+  const totalScore = calculateScore(task)
 
-  // スコアに応じて色を変える関数（UX: 直感的な状況把握のため）
   const getScoreColor = (score: number) => {
-    if (score >= 70) return '#ff4d4f'; // 赤：高優先
-    if (score >= 40) return '#faad14'; // 黄：中優先
-    return '#52c41a';                  // 緑：低優先
+    if (score >= 80) return '#ff4d4f'; 
+    if (score >= 50) return '#faad14'; 
+    return '#52c41a';                  
   };
 
   return (
     <div style={{ 
-      marginBottom: 15, 
-      border: '1px solid #ddd', 
-      padding: 15, 
-      borderRadius: 12, // 少し丸みを強調してモダンに
-      boxShadow: '0 2px 4px rgba(0,0,0,0.05)', // 軽い影で浮き出し
+      marginBottom: 20, 
+      border: '1px solid #eee', 
+      padding: '20px', 
+      borderRadius: '16px', 
+      boxShadow: '0 4px 6px rgba(0,0,0,0.02)', 
       backgroundColor: '#fff'
     }}>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
+      {/* 上段：タイトルと削除ボタン */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 15, alignItems: 'center' }}>
         <input
-          placeholder="タスク名"
+          placeholder="何をしますか？"
           value={task.title}
           onChange={e => onUpdate(task.id, 'title', e.target.value)}
-          style={{ flex: 2, padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+          style={{ flex: 1, padding: '10px', fontSize: '1rem', borderRadius: '8px', border: '1px solid #ddd' }}
         />
         
-        {/* --- スコア & グラフ表示セクション --- */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '60px' }}>
-          <span style={{ fontSize: '9px', color: '#888', fontWeight: 'bold' }}>PRIORITY</span>
-          <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: getScoreColor(totalScore) }}>
+        <button 
+          onClick={() => onRemove(task.id)} 
+          style={{ 
+            width: '32px', height: '32px', color: '#ccc', background: 'none', 
+            border: 'none', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1
+          }}
+        >✕</button>
+      </div>
+
+      {/* 中段：レイヤー選択（ここが最重要） */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: '11px', color: '#aaa', marginBottom: 8, fontWeight: 'bold', letterSpacing: '0.05em' }}>STRATEGY LAYER</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[
+            { id: 'deadline', label: '🚨 絶対', color: '#ff4d4f' },
+            { id: 'investment', label: '🌱 投資', color: '#1890ff' },
+            { id: 'desire', label: '🎁 本音', color: '#52c41a' }
+          ].map(l => (
+            <button
+              key={l.id}
+              type="button"
+              onClick={() => onUpdate(task.id, 'layer', l.id)}
+              style={{
+                flex: 1,
+                fontSize: '12px',
+                padding: '10px 5px',
+                borderRadius: '10px',
+                border: '2px solid ' + (task.layer === l.id ? l.color : '#f0f0f0'),
+                backgroundColor: task.layer === l.id ? l.color : 'white',
+                color: task.layer === l.id ? 'white' : '#666',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 下段：スライダーとスコア表示 */}
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '12px' }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#444', display: 'block', marginBottom: '10px' }}>
+            {task.layer === 'deadline' && "🚨 このタスクの緊急・重要度"}
+            {task.layer === 'investment' && "🌱 将来へのリターン期待度"}
+            {task.layer === 'desire' && "🎁 あなたの「やりたい！」熱量"}
+          </label>
+          <input 
+            type="range" 
+            min="0" 
+            max="100" 
+            value={task.intensity}
+            onChange={(e) => onUpdate(task.id, 'intensity', parseInt(e.target.value))}
+            style={{ width: '100%', height: '6px', cursor: 'pointer', accentColor: getScoreColor(totalScore) }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#999', marginTop: '5px' }}>
+            <span>Low</span>
+            <span style={{ fontWeight: 'bold', color: '#333' }}>{task.intensity}%</span>
+            <span>High</span>
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center', minWidth: '80px' }}>
+          <div style={{ fontSize: '9px', color: '#aaa', fontWeight: 'bold' }}>PRIORITY</div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: getScoreColor(totalScore), lineHeight: 1.1 }}>
             {totalScore}
-          </span>
+          </div>
         </div>
-
-        {/* 棒グラフ（UXポイント：数値だけでなく視覚的に訴えかける） */}
-        <div style={{ flex: 1, height: '12px', backgroundColor: '#eee', borderRadius: '6px', overflow: 'hidden' }}>
-          <div style={{ 
-            width: `${totalScore}%`, 
-            height: '100%', 
-            backgroundColor: getScoreColor(totalScore),
-            transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)' // 滑らかな動き
-          }} />
-        </div>
-        {/* ---------------------------------- */}
-
-  <button 
-        onClick={() => onRemove(task.id)} 
-        style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '32px',
-          height: '32px',
-          color: '#999',         // 最初は控えめな色
-          background: '#f5f5f5', // 軽いグレーの背景
-          border: 'none', 
-          borderRadius: '50%',   // 丸いボタン
-          cursor: 'pointer',
-          fontSize: '1.2rem',
-          transition: 'all 0.2s ease', // 変化を滑らかに
-          marginLeft: '5px'
-        }}
-        // マウスを乗せた時の演出
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = '#fff';
-          e.currentTarget.style.backgroundColor = '#ff4d4f'; // ホバーで赤く
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = '#999';
-          e.currentTarget.style.backgroundColor = '#f5f5f5';
-        }}
-        title="タスクを削除"
-          >×</button>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
-          <label style={{ fontSize: '12px', color: '#666' }}>感情</label>
+      {/* 補助入力：期日と説明 */}
+      <div style={{ display: 'flex', gap: 10, marginTop: 15 }}>
+        <div style={{ flex: 1 }}>
           <input
-            type="number"
-            value={task.emotion}
-            onChange={e => onUpdate(task.id, 'emotion', Number(e.target.value))}
-            style={{ width: '100%', padding: '4px' }}
+            type="date"
+            value={task.deadline || ''}
+            onChange={e => onUpdate(task.id, 'deadline', e.target.value)}
+            style={{ width: '100%', padding: '8px', fontSize: '0.8rem', border: '1px solid #eee', borderRadius: '6px' }}
           />
         </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
-          <label style={{ fontSize: '12px', color: '#666' }}>現実</label>
+        <div style={{ flex: 2 }}>
           <input
-            type="number"
-            value={task.reality}
-            onChange={e => onUpdate(task.id, 'reality', Number(e.target.value))}
-            style={{ width: '100%', padding: '4px' }}
+            placeholder="備考メモ"
+            value={task.description || ''}
+            onChange={e => onUpdate(task.id, 'description', e.target.value)}
+            style={{ width: '100%', padding: '8px', fontSize: '0.8rem', border: '1px solid #eee', borderRadius: '6px' }}
           />
         </div>
-
-        
-
       </div>
-
-      <input
-        placeholder="簡単な説明（任意）"
-        value={task.description || ''}
-        onChange={e => onUpdate(task.id, 'description', e.target.value)}
-        style={{ width: '100%', padding: '6px', fontSize: '13px', border: '1px solid #eee', borderRadius: '4px' }}
-      />
     </div>
   )
 }

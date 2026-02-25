@@ -1,100 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Priority Score App
+「何からやるか」に迷わない、生存戦略型タスク管理ツール独自のスコアリングアルゴリズム（感情 × 現実 × 属性レイヤー）を用いて、膨大なタスクの中から「今すぐ着手すべきもの」を可視化するWebアプリケーションです。
 
-## Getting Started
+1. アプリ概要目的: 
+タスクの優先順位を「主観（やりたい）」と「客観（やらなきゃ）」の両面からスコア化し、納得感のある行動順位を提示する。課題解決: タスクが多すぎて何から手をつければいいか分からない、または「緊急だが重要でないこと」に時間を奪われる問題を解決します。
 
-First, run the development server:
+2. こだわりの機能（開発の工夫）
+三層レイヤー（Layer System）タスクを単なる「重要度」ではなく、人生における役割（レイヤー）で分類し、スコアに倍率補正をかけます。
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+絶対 (Deadline): 生存に不可欠なタスク（スコア1.5倍）
+投資 (Investment): 未来の自分のための種まき（スコア1.2倍）
+本音 (Desire): 自分の純粋な欲求（補正なし）
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+優先順位の自動算出アルゴリズムハイブリッド計算: 「感情（やりたい度）」と「現実（やらなきゃ度）」を50:50で合算。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+期日ボーナス: 締切3日前からスコアに +20 点のボーナスを加算し、直近のタスクを確実に上位へ浮上させます。 
+徹底したUXの引き算開発初期にあった「重み付けモード選択」をあえて廃止しました。ユーザーの判断コストを最小限に抑えるため、レイヤーを選択するだけで最適な重みが適用される設計にブラッシュアップしました。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. 機能詳細機能内容タスク追加/削除直感的な操作でタスクを管理。
+未入力タスクのバリデーション機能付き。
+リアルタイム更新入力した瞬間にスコアリングが行われ、現在の状況を即座に反映。動的ランキング表示結果ページにてスコア順・期日順にソート。
+1位のタスクを強調表示。AI的評価メッセージ合計スコアに基づき、現在のタスクリストの「健全度」をフィードバック。データ永続化LocalStorageを活用し、ブラウザを閉じてもデータが保持される設計。
 
-## Learn More
+4. 技術スタック
+Frontend: Next.js 15 (App Router), TypeScript
+State Management: React useState, useMemo, useEffect
+Logic: TypeScriptによる厳格な型安全性の確保（Record, keyof, Union型 の活用）
+Storage: LocalStorage API
+Deployment: Vercel (想定)
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-
-
-# 優先順位スコアアプリ
-
-## 1. アプリ概要
-- **目的**：タスクの優先順位をスコア化して視覚的に確認できるようにする
-- **想定ユーザー**：自分／チームでタスク管理したい人
-- **画面構成**：
-  - タスク入力ページ（タスク名・スコア入力、追加・削除ボタン、合計スコア表示）
-  - 結果ページ（スコア順に色分け表示、削除可能、合計スコア表示、入力ページに戻るボタン）
-
-## 2. 機能一覧
-
-| 機能 | 内容 | UI要素 | 備考 |
-|------|------|-------|------|
-| タスク追加 | 新しいタスクを追加 | 「タスク追加」ボタン | 入力フォーム横に追加 |
-| タスク削除 | 任意のタスクを削除 | 「削除」ボタン | 入力・結果ページともに可 |
-| スコア入力 | タスクごとにスコアを入力 | 数値入力フォーム | 合計スコアに反映 |
-| 合計スコア表示 | 現在のタスク合計スコア | ページ上部に表示 | リアルタイム更新 |
-| 色分け表示 | スコア順に背景色をグラデーション表示 | タスク行背景 | 高スコア→赤、低スコア→緑 |
-| 結果画面遷移 | 入力データをAPI経由で結果ページに送信 | 「送信」ボタン | URL パラメータでタスクデータ渡す |
-| ページ遷移 | 入力画面と結果画面を行き来 | 「タスク入力に戻る」ボタン | React Router / Next.js router使用 |
-
-## 3. 技術スタック
-- **フロントエンド**：Next.js 16 + TypeScript  
-- **状態管理**：React `useState`  
-- **ルーティング**：Next.js App Router (`app/page.tsx`, `app/result/page.tsx`)  
-- **API**：Next.js API Route (`app/api/score/route.ts`)  
-- **バージョン管理**：Git / GitHub  
-- **スタイル**：CSSインライン（簡易）＋レスポンシブ対応  
-- **動作環境**：ブラウザ（ローカルサーバー localhost:3000）  
-
-## 4. 開発上の工夫・ポイント
-- **型安全**：TypeScriptの `Task` 型を使用し、`useState` の型を明示
-- **警告回避**：React18 の `useEffect` で同期 `setState` を避け、初期値で state を設定
-- **UI改善**：
-  - スコアに応じた色分けで視覚化
-  - 合計スコアのリアルタイム表示
-  - 削除・追加機能で柔軟に編集可能
-- **レスポンシブ対応**：
-  - 最大幅 600px に制限して中央配置
-  - モバイルでも横幅に合わせて表示
-
-## 5. Git運用メモ
-- **初回作成**：
-```bash
-git init
-git add .
-git commit -m "first commit"
-git branch -M main
-git remote add origin <リポジトリURL>
-git push -u origin main
-
-- **更新時**：
-git add .
-git commit -m "update tasks or UI"
-git push
-
-- **別PCで作業再開**：
+5. 開発環境のセットアップ
+Bash
+# クローン
 git clone <リポジトリURL>
 cd priority-score-app
+
+# 依存関係のインストール
 npm install
+
+# 開発サーバー起動
 npm run dev

@@ -1,41 +1,28 @@
-// lib/taskLogic.ts
+import { Layer, Task } from '../app/types/task'; // 🚀 正しいパスからインポート
 
-// 型（Mode）を定義しておきます
-export type Mode = 'balance' | 'emotion' | 'reality';
+export const calculateScore = (task: Task): number => { // mode 引数を削除
+// 1. 基本スコア計算（5:5で固定）
+　let score = task.intensity;
 
-export const calculateScore = (
-  emotion: number,
-  reality: number,
-  mode: Mode
-): number => {
-  // モードごとの倍率を決める
-  let eWeight = 0.5; // 感情の重み
-  let rWeight = 0.5; // 現実の重み
+// 2. レイヤーによる倍率補正
 
-  if (mode === 'emotion') {
-    eWeight = 0.8;
-    rWeight = 0.2;
-  } else if (mode === 'reality') {
-    eWeight = 0.2;
-    rWeight = 0.8;
+　const layerMultipliers: Record<Layer, number> = {
+    deadline: 1.5,   // 「絶対」は熱量がそのまま「緊急性」として重くなる
+    investment: 1.2, // 「投資」は未来への価値として少し底上げ
+    desire: 0.9      // 「本音」は純粋な熱量そのまま
+  };
+  score *= layerMultipliers[task.layer];
+
+  // 3. 期日直前ボーナス（残り3日以内なら+20点）
+ if (task.deadline) {
+    const today = new Date();
+    const limit = new Date(task.deadline);
+    const diffDays = Math.ceil((limit.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 3 && diffDays >= 0) {
+      score += 20; // 3日以内なら一律20点加点
+    }
   }
 
-  // 計算して四捨五入
-  return Math.round(emotion * eWeight + reality * rWeight);
-};
-
-export const getDeadlineStatus = (deadline?: string) => {
-  if (!deadline) return { label: '', color: '#888', isUrgent: false };
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(deadline);
-  
-  const diffTime = target.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) return { label: '期限切れ', color: '#ff4d4f', isUrgent: true };
-  if (diffDays === 0) return { label: '今日まで', color: '#ff4d4f', isUrgent: true };
-  if (diffDays <= 3) return { label: `あと${diffDays}日`, color: '#faad14', isUrgent: true };
-  return { label: `あと${diffDays}日`, color: '#52c41a', isUrgent: false };
+  return Math.round(score);
 };
