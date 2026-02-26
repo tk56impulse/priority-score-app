@@ -1,15 +1,21 @@
 import "./globals.css";
-import { ReactNode } from "react";
+import { Inter } from "next/font/google";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "優先順位スコアアプリ",
-  description: "タスクの優先順位を計算して表示するアプリ",
+  title: "STRATEGIC LAYER",
+  description: "Command your priorities with tactical precision.",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body className={inter.className}>{children}</body>
     </html>
   );
 }

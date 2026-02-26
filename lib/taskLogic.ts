@@ -1,26 +1,49 @@
-import { Layer, Task } from '../app/types/task'; // 🚀 正しいパスからインポート
+import { Task, Layer, Category, AppraisalMode } from "../app/types/task";
 
-export const calculateScore = (task: Task): number => { // mode 引数を削除
-// 1. 基本スコア計算（5:5で固定）
-　let score = task.intensity;
-
-// 2. レイヤーによる倍率補正
-
-　const layerMultipliers: Record<Layer, number> = {
-    deadline: 1.5,   // 「絶対」は熱量がそのまま「緊急性」として重くなる
-    investment: 1.2, // 「投資」は未来への価値として少し底上げ
-    desire: 0.9      // 「本音」は純粋な熱量そのまま
+export const calculateScore = (
+  task: Task,
+  mode: AppraisalMode = "normal",
+): number => {
+  // 1. ジャンルによるベース加点
+  const categoryBonus: Record<Category, number> = {
+    work: 20,
+    study: 10,
+    private: 0,
   };
-  score *= layerMultipliers[task.layer];
 
-  // 3. 期日直前ボーナス（残り3日以内なら+20点）
- if (task.deadline) {
+  // 🚀 エラー修正：再代入しないので const に変更
+  const baseScore = task.intensity + categoryBonus[task.category];
+
+  // 2. レイヤー倍率をモードごとに定義
+  // 🚀 エラー修正：オブジェクトを直接定義することで const のまま扱います
+  const multipliers: Record<Layer, number> =
+    mode === "sweet"
+      ? { deadline: 1.1, investment: 1.2, desire: 1.6 } // 🍬 甘口：本音ブースト
+      : mode === "spicy"
+        ? { deadline: 2.0, investment: 1.2, desire: 0.5 } // 🌶️ 激辛：現実ブースト
+        : { deadline: 1.5, investment: 1.2, desire: 1.0 }; // ⚖️ 普通
+
+  let score = baseScore * multipliers[task.layer];
+
+  // 🚀 こっそり入れる「現実主義補正」
+  // 普通モード以上（普通・激辛）の時、趣味(private)カテゴリはスコアを少し削る
+  if (mode !== "sweet" && task.category === "private") {
+    score *= 0.85; // 15%カットして、仕事や勉強を優先させる
+  }
+
+  // 3. 期日ボーナス
+  if (task.deadline) {
     const today = new Date();
     const limit = new Date(task.deadline);
-    const diffDays = Math.ceil((limit.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil(
+      (limit.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+    );
 
     if (diffDays <= 3 && diffDays >= 0) {
-      score += 20; // 3日以内なら一律20点加点
+      // 激辛モードの時だけ期日ボーナスを倍にする
+      score += mode === "spicy" ? 40 : 20;
+    } else if (diffDays < 0) {
+      score += 50;
     }
   }
 

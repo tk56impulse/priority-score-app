@@ -1,11 +1,110 @@
-body {
-  font-family: sans-serif;
-  padding: 2rem;
+/* --- 1. Variables & Base Settings --- */
+:root {
+  --transition-speed: 0.3s;
+  --color-accent: #38bdf8;
+  --color-bg-dark: #0f172a;
+  --color-text-dark: #f1f5f9;
 }
-input, button {
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-dark);
+  font-family:
+    "Inter",
+    -apple-system,
+    sans-serif;
+  transition:
+    background-color var(--transition-speed),
+    color var(--transition-speed);
+}
+
+/* --- 2. Common Elements --- */
+button {
   font-size: 1rem;
   padding: 0.3rem 0.5rem;
-}
-button {
   cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+}
+
+input:focus {
+  outline: none;
+}
+
+/* --- 3. Custom Range Sliders --- */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  cursor: pointer;
+  background: transparent;
+}
+
+/* Webkit (Chrome/Safari) */
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 10px;
+  background: transparent !important;
+  border-radius: 5px;
+}
+
+/* Firefox */
+input[type="range"]::-moz-range-track {
+  height: 10px;
+  background: transparent !important;
+  border-radius: 5px;
+}
+
+/* --- 4. Animations --- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes wave {
+  0%,
+  100% {
+    transform: scaleY(0.5);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1.2);
+    opacity: 1;
+  }
+}
+
+/* --- 5. Utility Classes --- */
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  transform: rotate(45deg);
+  transition: 0.5s;
+}
+
+.btn-shine:hover::after {
+  left: 100%;
 }

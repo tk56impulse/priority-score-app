@@ -1,144 +1,261 @@
-'use client'
-import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useLocalStorage } from '../../hooks/useLocalStorage'
-import { calculateScore } from '../../lib/taskLogic'
-import { Task } from '../types/task'
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Task, AppraisalMode } from "../types/task";
+import { calculateScore } from "../../lib/taskLogic";
 
 export default function ResultPage() {
-  const router = useRouter()
-  
-  // 🚀 mode は使わないので tasks だけ取得
-  const [tasks] = useLocalStorage<Task[]>('tasks', [])
-  const [sortType, setSortType] = useState<'score' | 'deadlineNear' | 'deadlineFar'>('score');
+  const router = useRouter();
 
-  const validTasks = useMemo(() => {
-    return tasks.filter(t => t.title && t.title.trim() !== "");
-  }, [tasks]);
+  // 1. useStateの初期化関数の中で localStorage を読み込む
+  // これなら「後出しの setState」にならないので、React Compiler も文句を言いません
+  const [data, setData] = useState<{
+    tasks: Task[];
+    mode: AppraisalMode;
+    isDark: boolean;
+  } | null>(() => {
+    // サーバーサイドレンダリング時は null を返す
+    if (typeof window === "undefined") return null;
 
-  const sortedTasks = useMemo(() => {
-    const list = [...validTasks];
-    if (sortType === 'score') {
-      // 🚀 mode 引数を削除
-      list.sort((a, b) => calculateScore(b) - calculateScore(a));
-    } else if (sortType === 'deadlineNear') {
-      list.sort((a, b) => {
-        if (!a.deadline) return 1;
-        if (!b.deadline) return -1;
-        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-      });
-    } else if (sortType === 'deadlineFar') {
-      list.sort((a, b) => {
-        if (!a.deadline) return 1;
-        if (!b.deadline) return -1;
-        return new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
-      });
+    const savedTasks = localStorage.getItem("tasks");
+    const mode =
+      (localStorage.getItem("appraisalMode") as AppraisalMode) || "normal";
+    const isDark = localStorage.getItem("isDarkMode") === "true";
+
+    if (!savedTasks) return { tasks: [], mode, isDark };
+
+    const scoredTasks = (JSON.parse(savedTasks) as Task[])
+      .filter((t) => t.title.trim() !== "")
+      .sort((a, b) => calculateScore(b, mode) - calculateScore(a, mode));
+
+    return { tasks: scoredTasks, mode, isDark };
+  });
+
+  // 2. dataがセットされた後の「背景色」の同期だけ useEffect で行う
+  // （これは外部システム＝DOM への同期なので、正しい Effect の使い方です）
+  useEffect(() => {
+    if (!data) return;
+    document.body.style.backgroundColor = data.isDark ? "#0f172a" : "#f8fafc";
+    return () => {
+      document.body.style.backgroundColor = "";
+    };
+  }, [data?.isDark]);
+
+  // 3. 早期リターン
+  if (!data) return null;
+
+  // 5. ここから下は data があることが確定している
+  const { tasks, mode, isDark } = data;
+  const hasExtremeTask = tasks.some((t) => calculateScore(t, mode) >= 200);
+
+  // デザイン用定数
+  const theme = {
+    bg: isDark ? "#0f172a" : "#f8fafc",
+    text: isDark ? "#f8fafc" : "#0f172a",
+    subText: isDark ? "#94a3b8" : "#64748b",
+    cardBg: isDark ? "rgba(30, 41, 59, 0.7)" : "#ffffff",
+    border: isDark ? "rgba(255, 255, 255, 0.1)" : "#e2e8f0",
+  };
+
+  const getModeStyles = () => {
+    switch (mode) {
+      case "sweet":
+        return { color: "#ff4d79", label: "💖 褒めちぎりモード" };
+      case "spicy":
+        return { color: "#ff4500", label: "🔥 激辛モード" };
+      default:
+        return { color: "#38bdf8", label: "📊 標準モード" };
     }
-    return list;
-  }, [validTasks, sortType]);
+  };
+  const styles = getModeStyles();
 
-  const averageScore = useMemo(() => {
-    if (validTasks.length === 0) return 0;
-    // 🚀 mode 引数を削除
-    const total = validTasks.reduce((sum, t) => sum + calculateScore(t), 0);
-    return Math.round(total / validTasks.length);
-  }, [validTasks]);
-
-  const getAIEvaluation = (score: number) => {
-    if (score > 70) return { label: '至急実行', color: '#ff4d4f', desc: 'このリストは非常に優先度が高いです。すぐ着手しましょう。' }
-    if (score > 40) return { label: '順次実行', color: '#faad14', desc: 'バランスの良い計画です。上から順に片付けましょう。' }
-    return { label: '計画見直し', color: '#52c41a', desc: '少し目標が低いか、ワクワクが足りないかもしれません。' }
-  }
-
-  const evaluation = getAIEvaluation(averageScore);
+  // --- 3. サブコンポーネント的なロジック ---
+  const getDeadlineInfo = (deadline: string | undefined) => {
+    if (!deadline) return { text: "NO DEADLINE SET", isUrgent: false };
+    const diff = Math.ceil(
+      (new Date(deadline).getTime() - new Date().getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+    return { text: `📅 ${deadline}`, isUrgent: diff >= 0 && diff <= 3 };
+  };
 
   return (
-    <div style={{ maxWidth: 600, margin: 'auto', padding: '40px 20px', fontFamily: 'sans-serif', color: '#333' }}>
-      <button 
-        onClick={() => router.push('/')} 
-        style={{ marginBottom: 20, cursor: 'pointer', border: 'none', background: 'none', color: '#0070f3', display: 'flex', alignItems: 'center', gap: 5, fontSize: '1rem' }}
-      >
-        ← 入力画面に戻る
-      </button>
-
-      <div style={{ display: 'flex', gap: 10, marginBottom: 30, justifyContent: 'center' }}>
-        <button 
-          onClick={() => setSortType('score')}
-          style={{ 
-            padding: '10px 20px', borderRadius: '25px', border: '1px solid #ccc', 
-            backgroundColor: sortType === 'score' ? '#0070f3' : '#fff', 
-            color: sortType === 'score' ? '#fff' : '#333',
-            cursor: 'pointer', fontWeight: 'bold'
+    <main
+      style={{
+        maxWidth: 600,
+        margin: "auto",
+        padding: "40px 20px",
+        minHeight: "100vh",
+        color: theme.text,
+        transition: "all 0.3s ease",
+      }}
+    >
+      <header>
+        <button
+          onClick={() => router.push("/")}
+          style={{
+            marginBottom: "20px",
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            color: styles.color,
+            fontWeight: "bold",
+            padding: 0,
           }}
         >
-          スコア順
+          ← BACK TO DECK
         </button>
-        <button 
-          onClick={() => setSortType(sortType === 'deadlineNear' ? 'deadlineFar' : 'deadlineNear')}
-          style={{ 
-            padding: '10px 20px', borderRadius: '25px', border: '1px solid #ccc', 
-            backgroundColor: sortType !== 'score' ? '#0070f3' : '#fff', 
-            color: sortType !== 'score' ? '#fff' : '#333',
-            cursor: 'pointer', fontWeight: 'bold'
-          }}
-        >
-          期日順 {sortType === 'deadlineNear' ? '▲' : '▼'}
-        </button>
-      </div>
 
-      <div style={{ textAlign: 'center', marginBottom: 40, padding: 30, backgroundColor: '#f8f9fa', borderRadius: 20, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-        <h1 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#666', letterSpacing: '0.1em' }}>AVERAGE SCORE</h1>
-        <div style={{ fontSize: '4rem', fontWeight: 'bold', color: evaluation.color, lineHeight: 1 }}>{averageScore}</div>
-        <div style={{ fontWeight: 'bold', fontSize: '1.5rem', color: evaluation.color, marginTop: 10 }}>{evaluation.label}</div>
-        <p style={{ color: '#777', fontSize: '0.95rem', marginTop: 12 }}>{evaluation.desc}</p>
-      </div>
+        <div style={{ textAlign: "center", marginBottom: "40px" }}>
+          <span
+            style={{
+              fontSize: "0.8rem",
+              fontWeight: "bold",
+              color: styles.color,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
+            {styles.label} OPTIMIZED
+          </span>
+          <h1 style={{ margin: "10px 0", fontSize: "2rem", fontWeight: "900" }}>
+            PRIORITY RANKING
+          </h1>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-        {sortedTasks.map((task, index) => {
-          // 🚀 mode 引数を削除
-          const score = calculateScore(task);
-          const isFirst = index === 0;
-
-          return (
-            <div 
-              key={task.id} 
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: 15, padding: '20px', 
-                borderRadius: 16, border: isFirst ? '2px solid #ffd700' : '1px solid #eee', 
-                backgroundColor: '#fff', position: 'relative',
-                boxShadow: isFirst ? '0 8px 24px rgba(255, 215, 0, 0.15)' : '0 2px 8px rgba(0,0,0,0.02)'
+          {mode === "spicy" && hasExtremeTask && (
+            <aside
+              style={{
+                marginTop: "20px",
+                padding: "15px",
+                borderRadius: "12px",
+                backgroundColor: isDark ? "rgba(244, 63, 94, 0.1)" : "#fff1f2",
+                border: `1px solid ${isDark ? "rgba(244, 63, 94, 0.2)" : "#fecdd3"}`,
+                color: isDark ? "#fda4af" : "#e11d48",
+                fontSize: "0.85rem",
+                lineHeight: "1.6",
+                fontStyle: "italic",
               }}
             >
-              <div style={{ 
-                width: 32, height: 32, backgroundColor: isFirst ? '#ffd700' : '#f0f0f0', 
-                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 'bold', flexShrink: 0
-              }}>
-                {index + 1}
-              </div>
+              「しんどいか。大丈夫。諦めるな。乗り越えられる。」
+            </aside>
+          )}
+        </div>
+      </header>
 
-              <div style={{ flex: 1 }}>
-                {/* 🚀 追加：レイヤーバッジ */}
-                <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
-                  {task.layer === 'deadline' && <span style={{fontSize:'10px', background:'#ff4d4f', color:'white', padding:'2px 6px', borderRadius:'4px', fontWeight:'bold'}}>🚨絶対</span>}
-                  {task.layer === 'investment' && <span style={{fontSize:'10px', background:'#1890ff', color:'white', padding:'2px 6px', borderRadius:'4px', fontWeight:'bold'}}>🌱投資</span>}
-                  {task.layer === 'desire' && <span style={{fontSize:'10px', background:'#52c41a', color:'white', padding:'2px 6px', borderRadius:'4px', fontWeight:'bold'}}>🎁本音</span>}
-                </div>
+      <section>
+        <ol
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            padding: 0,
+            listStyle: "none",
+          }}
+        >
+          {tasks.map((task, index) => {
+            const score = calculateScore(task, mode);
+            const isFirst = index === 0;
+            const deadlineInfo = getDeadlineInfo(task.deadline);
 
-                <div style={{ fontWeight: 'bold', fontSize: isFirst ? '1.1rem' : '1rem' }}>{task.title}</div>
-                {task.deadline && (
-                  <div style={{ fontSize: '0.8rem', color: '#999', marginTop: 4 }}>📅 {task.deadline}</div>
-                )}
-              </div>
+            return (
+              <li key={task.id}>
+                <article
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: theme.cardBg,
+                    padding: "24px",
+                    borderRadius: "16px",
+                    border: `1px solid ${isFirst ? styles.color : theme.border}`,
+                    boxShadow: isDark ? "none" : "0 4px 12px rgba(0,0,0,0.05)",
+                    transform: isFirst ? "scale(1.02)" : "scale(1)",
+                    transition: "transform 0.2s",
+                  }}
+                >
+                  {/* 順位 */}
+                  <div
+                    style={{
+                      fontSize: "1.8rem",
+                      fontWeight: "900",
+                      marginRight: "20px",
+                      color: isFirst
+                        ? styles.color
+                        : isDark
+                          ? "#334155"
+                          : "#e2e8f0",
+                      minWidth: "45px",
+                    }}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </div>
 
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: isFirst ? '#d4af37' : '#333' }}>{score}</div>
-                <div style={{ fontSize: '0.65rem', color: '#aaa', fontWeight: 'bold' }}>POINTS</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+                  {/* 詳細 */}
+                  <div style={{ flex: 1 }}>
+                    <h2
+                      style={{
+                        fontSize: "1.1rem",
+                        fontWeight: "bold",
+                        margin: "0 0 4px 0",
+                      }}
+                    >
+                      {task.title}
+                    </h2>
+                    <p
+                      style={{
+                        fontSize: "0.7rem",
+                        color: theme.subText,
+                        textTransform: "uppercase",
+                        margin: "0 0 4px 0",
+                      }}
+                    >
+                      {task.category}
+                      {"//"} {task.layer}
+                    </p>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: deadlineInfo.isUrgent
+                          ? "#ef4444"
+                          : theme.subText,
+                        fontWeight: deadlineInfo.isUrgent ? "bold" : "normal",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      {deadlineInfo.text}
+                      {deadlineInfo.isUrgent && <span>⚠️ SHORT-TERM</span>}
+                    </div>
+                  </div>
+
+                  {/* スコア */}
+                  <aside style={{ textAlign: "center", marginLeft: "15px" }}>
+                    <div
+                      style={{
+                        fontSize: "0.6rem",
+                        color: styles.color,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      SCORE
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "1.5rem",
+                        fontWeight: "900",
+                        color: isFirst ? styles.color : theme.text,
+                      }}
+                    >
+                      {score}
+                    </div>
+                  </aside>
+                </article>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    </main>
   );
 }
