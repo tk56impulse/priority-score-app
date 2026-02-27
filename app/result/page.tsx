@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Task, AppraisalMode } from "../types/task";
+import { Task, AppraisalMode, LAYER_MAP, Language } from "../types/task";
 import { calculateScore } from "../../lib/taskLogic";
 
 export default function ResultPage() {
@@ -14,6 +14,7 @@ export default function ResultPage() {
     tasks: Task[];
     mode: AppraisalMode;
     isDark: boolean;
+    lang: Language;
   } | null>(() => {
     // サーバーサイドレンダリング時は null を返す
     if (typeof window === "undefined") return null;
@@ -22,14 +23,15 @@ export default function ResultPage() {
     const mode =
       (localStorage.getItem("appraisalMode") as AppraisalMode) || "normal";
     const isDark = localStorage.getItem("isDarkMode") === "true";
+    const lang = (localStorage.getItem("appLang") as Language) || "ja";
 
-    if (!savedTasks) return { tasks: [], mode, isDark };
+    if (!savedTasks) return { tasks: [], mode, isDark, lang };
 
     const scoredTasks = (JSON.parse(savedTasks) as Task[])
       .filter((t) => t.title.trim() !== "")
       .sort((a, b) => calculateScore(b, mode) - calculateScore(a, mode));
 
-    return { tasks: scoredTasks, mode, isDark };
+    return { tasks: scoredTasks, mode, isDark, lang };
   });
 
   // 2. dataがセットされた後の「背景色」の同期だけ useEffect で行う
@@ -46,7 +48,7 @@ export default function ResultPage() {
   if (!data) return null;
 
   // 5. ここから下は data があることが確定している
-  const { tasks, mode, isDark } = data;
+  const { tasks, mode, isDark, lang } = data;
   const hasExtremeTask = tasks.some((t) => calculateScore(t, mode) >= 200);
 
   // デザイン用定数
@@ -57,22 +59,43 @@ export default function ResultPage() {
     cardBg: isDark ? "rgba(30, 41, 59, 0.7)" : "#ffffff",
     border: isDark ? "rgba(255, 255, 255, 0.1)" : "#e2e8f0",
   };
+  // --- 表示用テキストの多言語化定数 ---
+  const i18n = {
+    title: lang === "ja" ? "優先順位ランキング" : "PRIORITY RANKING",
+    back: lang === "ja" ? "← デッキに戻る" : "← BACK TO DECK",
+    score: lang === "ja" ? "スコア" : "SCORE",
+    urgent: lang === "ja" ? "⚠️ 直近の締切" : "⚠️ SHORT-TERM",
+    noDeadline: lang === "ja" ? "期日未設定" : "NO DEADLINE SET",
+    spicyMsg:
+      lang === "ja"
+        ? "「しんどいか。大丈夫。諦めるな。乗り越えられる。」"
+        : "“Hard times? It's okay. Don't give up. You can overcome this.”",
+  };
 
   const getModeStyles = () => {
     switch (mode) {
       case "sweet":
-        return { color: "#ff4d79", label: "💖 褒めちぎりモード" };
+        return {
+          color: "#ff4d79",
+          label: lang === "ja" ? "💖 褒めちぎりモード" : "💖 SWEET MODE",
+        };
       case "spicy":
-        return { color: "#ff4500", label: "🔥 激辛モード" };
+        return {
+          color: "#ff4500",
+          label: lang === "ja" ? "🔥 激辛モード" : "🔥 SPICY MODE",
+        };
       default:
-        return { color: "#38bdf8", label: "📊 標準モード" };
+        return {
+          color: "#38bdf8",
+          label: lang === "ja" ? "📊 標準モード" : "📊 NORMAL MODE",
+        };
     }
   };
   const styles = getModeStyles();
 
   // --- 3. サブコンポーネント的なロジック ---
   const getDeadlineInfo = (deadline: string | undefined) => {
-    if (!deadline) return { text: "NO DEADLINE SET", isUrgent: false };
+    if (!deadline) return { text: i18n.noDeadline, isUrgent: false };
     const diff = Math.ceil(
       (new Date(deadline).getTime() - new Date().getTime()) /
         (1000 * 60 * 60 * 24),
@@ -104,7 +127,7 @@ export default function ResultPage() {
             padding: 0,
           }}
         >
-          ← BACK TO DECK
+          {i18n.back}
         </button>
 
         <div style={{ textAlign: "center", marginBottom: "40px" }}>
@@ -120,7 +143,7 @@ export default function ResultPage() {
             {styles.label} OPTIMIZED
           </span>
           <h1 style={{ margin: "10px 0", fontSize: "2rem", fontWeight: "900" }}>
-            PRIORITY RANKING
+            {i18n.title}
           </h1>
 
           {mode === "spicy" && hasExtremeTask && (
@@ -137,7 +160,7 @@ export default function ResultPage() {
                 fontStyle: "italic",
               }}
             >
-              「しんどいか。大丈夫。諦めるな。乗り越えられる。」
+              {i18n.spicyMsg}
             </aside>
           )}
         </div>
@@ -159,7 +182,13 @@ export default function ResultPage() {
             const deadlineInfo = getDeadlineInfo(task.deadline);
 
             return (
-              <li key={task.id}>
+              <li
+                key={task.id}
+                className="fade-in-up"
+                style={{
+                  animationDelay: `${index * 0.1}s`,
+                }}
+              >
                 <article
                   style={{
                     display: "flex",
@@ -210,7 +239,7 @@ export default function ResultPage() {
                       }}
                     >
                       {task.category}
-                      {"//"} {task.layer}
+                      {"//"} {LAYER_MAP[task.layer].label[lang]}
                     </p>
                     <div
                       style={{
@@ -225,7 +254,7 @@ export default function ResultPage() {
                       }}
                     >
                       {deadlineInfo.text}
-                      {deadlineInfo.isUrgent && <span>⚠️ SHORT-TERM</span>}
+                      {deadlineInfo.isUrgent && <span>{i18n.urgent}</span>}
                     </div>
                   </div>
 

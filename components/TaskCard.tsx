@@ -1,9 +1,10 @@
-import { Task, Layer, Category } from "../app/types/task";
+import { Task, Layer, Category, LAYER_MAP, Language } from "../app/types/task";
 import { calculateScore } from "../lib/taskLogic";
 
 interface TaskCardProps {
   task: Task;
   isDarkMode: boolean;
+  lang: Language;
   onUpdate: (
     id: string,
     field: keyof Task,
@@ -15,10 +16,12 @@ interface TaskCardProps {
 export default function TaskCard({
   task,
   isDarkMode,
+  lang,
   onUpdate,
   onRemove,
 }: TaskCardProps) {
   const totalScore = calculateScore(task);
+  const layerInfo = LAYER_MAP[task.layer];
   // --- 1. スタイル定数の整理 ---
   const theme = {
     cardBg: isDarkMode ? "rgba(30, 41, 59, 0.7)" : "#ffffff",
@@ -29,21 +32,28 @@ export default function TaskCard({
     fieldBg: isDarkMode ? "#1e293b" : "#f1f5f9",
   };
   const getScoreColor = (intensity: number, layer: Layer) => {
-    if (layer === "desire") {
-      return "#10b981";
-    }
+    const info = LAYER_MAP[layer];
+    // 1. 本音(desire)は常に一定の色
+    if (layer === "desire") return info.color;
+
+    // 2. 共通：高強度（70以上）なら赤色（警告）にする
+    if (intensity >= 70) return "#ef4444";
+
+    // 3. 投資(investment)の色の変化
     if (layer === "investment") {
-      if (intensity >= 80) return "#ef4444";
       if (intensity >= 50) return "#f59e0b";
-      return "#3b82f6";
+      return info.color;
     }
+
+    // 4. 締切(deadline)の色の変化
     if (layer === "deadline") {
-      if (intensity >= 65) return "#ef4444";
       if (intensity >= 30) return "#fbbf24";
-      return "#22c55e";
+      return info.color;
     }
+
     return "#94a3b8";
   };
+
   const cardStyle: React.CSSProperties = {
     marginBottom: 20,
     padding: "24px",
@@ -132,29 +142,29 @@ export default function TaskCard({
       {/* 3. 戦略レイヤーボタン */}
       <section style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 8 }}>
-          {[
-            { id: "deadline", label: "🚨 絶対", color: "#ef4444" },
-            { id: "investment", label: "🌱 投資", color: "#3b82f6" },
-            { id: "desire", label: "🎁 本音", color: "#22c55e" },
-          ].map((l) => (
-            <button
-              key={l.id}
-              type="button"
-              onClick={() => onUpdate(task.id, "layer", l.id as Layer)}
-              style={{
-                flex: 1,
-                fontSize: "11px",
-                padding: "10px 0",
-                borderRadius: "8px",
-                border: `1px solid ${task.layer === l.id ? l.color : theme.border}`,
-                backgroundColor: task.layer === l.id ? l.color : "transparent",
-                color: task.layer === l.id ? "#fff" : theme.subText,
-                fontWeight: "bold",
-              }}
-            >
-              {l.label}
-            </button>
-          ))}
+          {(Object.keys(LAYER_MAP) as Layer[]).map((layerKey) => {
+            const info = LAYER_MAP[layerKey];
+            const isActive = task.layer === layerKey;
+            return (
+              <button
+                key={layerKey}
+                type="button"
+                onClick={() => onUpdate(task.id, "layer", layerKey)}
+                style={{
+                  flex: 1,
+                  fontSize: "11px",
+                  padding: "10px 0",
+                  borderRadius: "8px",
+                  border: `1px solid ${isActive ? info.color : theme.border}`,
+                  backgroundColor: isActive ? info.color : "transparent",
+                  color: isActive ? "#fff" : theme.subText,
+                  fontWeight: "bold",
+                }}
+              >
+                {info.icon} {info.label[lang]} {/* 👈 ここで言語を切り替え！ */}
+              </button>
+            );
+          })}
         </div>
       </section>
       {/* 4. スライダーエリア */}
@@ -176,9 +186,19 @@ export default function TaskCard({
             color: theme.subText,
           }}
         >
-          {task.layer === "deadline" && "どれくらい急ぎですか？"}
-          {task.layer === "investment" && "どれくらい重要ですか？"}
-          {task.layer === "desire" && "どれくらいやりたいですか？"}
+          {lang === "ja" ? (
+            <>
+              {task.layer === "deadline" && "どれくらい急ぎですか？"}
+              {task.layer === "investment" && "どれくらい重要ですか？"}
+              {task.layer === "desire" && "どれくらいやりたいですか？"}
+            </>
+          ) : (
+            <>
+              {task.layer === "deadline" && "How urgent is this?"}
+              {task.layer === "investment" && "How important is this?"}
+              {task.layer === "desire" && "How much do you want this?"}
+            </>
+          )}
         </label>
         <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
           <span
@@ -196,6 +216,7 @@ export default function TaskCard({
               type="range"
               min="0"
               max="100"
+              className="custom-slider"
               value={task.intensity}
               onChange={(e) =>
                 onUpdate(task.id, "intensity", parseInt(e.target.value))
@@ -208,6 +229,7 @@ export default function TaskCard({
                 borderRadius: "5px",
                 cursor: "pointer",
                 outline: "none",
+                margin: "10px 0",
                 background: `linear-gradient(to right, 
       ${getScoreColor(task.intensity, task.layer)} 0%, 
       ${getScoreColor(task.intensity, task.layer)} ${task.intensity}%, 

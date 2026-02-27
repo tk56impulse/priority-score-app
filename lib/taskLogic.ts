@@ -1,51 +1,74 @@
 import { Task, Layer, Category, AppraisalMode } from "../app/types/task";
 
+/** * スコア計算に使用する定数定義
+ * 将来的に調整が必要になった際、ここだけを見れば良い状態にする
+ */
+const SCORE_CONFIG = {
+  CATEGORY_BONUS: {
+    work: 20,
+    study: 10,
+    private: 0,
+    other: 0, // category型にotherがある場合
+  } as Record<Category, number>,
+
+  LAYER_MULTIPLIERS: {
+    sweet: { deadline: 1.1, investment: 1.2, desire: 1.6 },
+    normal: { deadline: 1.5, investment: 1.2, desire: 1.0 },
+    spicy: { deadline: 2.0, investment: 1.2, desire: 0.5 },
+  } as Record<AppraisalMode, Record<Layer, number>>,
+
+  PRIVATE_ADJUSTMENT: 0.85, // 現実主義補正（15%カット）
+  DEADLINE_BONUS_NEAR: { normal: 20, spicy: 40 },
+  DEADLINE_BONUS_OVER: 50,
+} as const;
+
+/**
+ * 戦略的タスク優先順位スコア計算関数
+ */
 export const calculateScore = (
   task: Task,
   mode: AppraisalMode = "normal",
 ): number => {
-  // 1. ジャンルによるベース加点
-  const categoryBonus: Record<Category, number> = {
-    work: 20,
-    study: 10,
-    private: 0,
-  };
+  // 1. ベーススコアの算出（強度 + カテゴリボーナス）
+  const categoryBonus = SCORE_CONFIG.CATEGORY_BONUS[task.category] ?? 0;
+  let score = task.intensity + categoryBonus;
 
-  // 🚀 エラー修正：再代入しないので const に変更
-  const baseScore = task.intensity + categoryBonus[task.category];
+  // 2. モードに応じたレイヤー倍率の適用
+  const multiplier = SCORE_CONFIG.LAYER_MULTIPLIERS[mode][task.layer];
+  score *= multiplier;
 
-  // 2. レイヤー倍率をモードごとに定義
-  // 🚀 エラー修正：オブジェクトを直接定義することで const のまま扱います
-  const multipliers: Record<Layer, number> =
-    mode === "sweet"
-      ? { deadline: 1.1, investment: 1.2, desire: 1.6 } // 🍬 甘口：本音ブースト
-      : mode === "spicy"
-        ? { deadline: 2.0, investment: 1.2, desire: 0.5 } // 🌶️ 激辛：現実ブースト
-        : { deadline: 1.5, investment: 1.2, desire: 1.0 }; // ⚖️ 普通
-
-  let score = baseScore * multipliers[task.layer];
-
-  // 🚀 こっそり入れる「現実主義補正」
-  // 普通モード以上（普通・激辛）の時、趣味(private)カテゴリはスコアを少し削る
+  // 3. カテゴリ補正（現実主義補正）
+  // Sweetモード以外でPrivateタスクの場合に適用
   if (mode !== "sweet" && task.category === "private") {
-    score *= 0.85; // 15%カットして、仕事や勉強を優先させる
+    score *= SCORE_CONFIG.PRIVATE_ADJUSTMENT;
   }
 
-  // 3. 期日ボーナス
+  // 4. 期日ボーナスの計算
   if (task.deadline) {
-    const today = new Date();
-    const limit = new Date(task.deadline);
-    const diffDays = Math.ceil(
-      (limit.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    if (diffDays <= 3 && diffDays >= 0) {
-      // 激辛モードの時だけ期日ボーナスを倍にする
-      score += mode === "spicy" ? 40 : 20;
-    } else if (diffDays < 0) {
-      score += 50;
-    }
+    score += calculateDeadlineBonus(task.deadline, mode);
   }
 
   return Math.round(score);
+};
+
+/**
+ * 期日に基づく加算スコアを算出（ヘルパー関数として分離）
+ */
+const calculateDeadlineBonus = (
+  deadline: string,
+  mode: AppraisalMode,
+): number => {
+  const today = new Date();
+  const limit = new Date(deadline);
+  const diffDays = Math.ceil(
+    (limit.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (diffDays < 0) return SCORE_CONFIG.DEADLINE_BONUS_OVER;
+  if (diffDays <= 3) {
+    return mode === "spicy"
+      ? SCORE_CONFIG.DEADLINE_BONUS_NEAR.spicy
+      : SCORE_CONFIG.DEADLINE_BONUS_NEAR.normal;
+  }
+  return 0;
 };

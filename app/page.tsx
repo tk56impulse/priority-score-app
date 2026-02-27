@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // useEffectを追加
+import { Language } from "./types/task";
 import { useRouter } from "next/navigation";
 import { v4 as uuid } from "uuid";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -8,6 +9,14 @@ import TaskCard from "../components/TaskCard";
 import { Task, Layer, Category, AppraisalMode } from "./types/task";
 
 export default function HomePage() {
+  // 1. 言語設定を localStorage と同期するように修正
+  const [lang, setLang] = useState<Language>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("appLang") as Language) || "ja";
+    }
+    return "ja";
+  });
+
   const router = useRouter();
   const [tasks, setTasks] = useLocalStorage<Task[]>("tasks", []);
 
@@ -16,17 +25,59 @@ export default function HomePage() {
   const [appraisalMode, setAppraisalMode] = useState<AppraisalMode>("normal");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // 定数定義
+  // --- 多言語テキスト定義 ---
+  const i18n = {
+    title: "STRATEGIC LAYER",
+    subtitle: lang === "ja" ? "優先順位を支配せよ" : "COMMAND YOUR PRIORITIES",
+    newTask: lang === "ja" ? "＋ 新規タスク" : "＋ NEW TASK",
+    noTask:
+      lang === "ja"
+        ? "タスクがありません。「＋ 新規タスク」から作成してください。"
+        : "No tasks found. Click '+ NEW TASK' to start.",
+    algoTitle:
+      lang === "ja"
+        ? "最適化アルゴリズムを選択"
+        : "SELECT OPTIMIZATION ALGORITHM",
+    analyzing: lang === "ja" ? "最適化中..." : "OPTIMIZING...",
+    emptyAlert:
+      lang === "ja"
+        ? "有効なタスク（タイトル）がありません。"
+        : "No valid tasks (title missing).",
+    confirmDiscard:
+      lang === "ja"
+        ? "タイトル未入力のタスクは除外されますが、よろしいですか？"
+        : "Tasks without titles will be excluded. Continue?",
+  };
+
   const APPRAISAL_OPTIONS = [
-    { id: "sweet", label: "🍬 甘口", color: "#ffb6c1" },
-    { id: "normal", label: "⚖️ 普通", color: "#94a3b8" },
-    { id: "spicy", label: "🌶️ 激辛", color: "#f43f5e" },
+    {
+      id: "sweet",
+      label: lang === "ja" ? "🍬 甘口" : "🍬 SWEET",
+      color: "#ffb6c1",
+    },
+    {
+      id: "normal",
+      label: lang === "ja" ? "⚖️ 普通" : "⚖️ NORMAL",
+      color: "#94a3b8",
+    },
+    {
+      id: "spicy",
+      label: lang === "ja" ? "🌶️ 激辛" : "🌶️ SPICY",
+      color: "#f43f5e",
+    },
   ] as const;
 
   const APPRAISAL_LABELS: Record<AppraisalMode, string> = {
-    sweet: "💖 気楽に並べ替え",
-    normal: "📊 標準モードで算出",
-    spicy: "🔥 激辛モードで厳選",
+    sweet: lang === "ja" ? "💖 気楽に並べ替え" : "💖 SORT GENTLY",
+    normal: lang === "ja" ? "📊 標準モードで算出" : "📊 ANALYZE NORMALLY",
+    spicy: lang === "ja" ? "🔥 激辛モードで厳選" : "🔥 ANALYZE STRICTLY",
+  };
+
+  // 言語切り替えハンドラ
+  const toggleLang = () => {
+    const newLang = lang === "ja" ? "en" : "ja";
+    setLang(newLang);
+    localStorage.setItem("appLang", newLang); // 👈 結果ページのために保存
   };
 
   // --- ハンドラ (Handlers) ---
@@ -39,6 +90,7 @@ export default function HomePage() {
       deadline: new Date().toISOString().split("T")[0],
       layer: "investment",
       category: "work",
+      createdAt: Date.now(),
     };
     setTasks((prev) => [newTask, ...prev]);
   };
@@ -53,61 +105,47 @@ export default function HomePage() {
     );
   };
 
-  // タスク削除ロジック
   const removeTask = (id: string) => {
     const targetTask = tasks.find((t) => t.id === id);
     if (!targetTask) return;
 
-    // タイトルが空（空白のみ含む）か判定
     const isTitleEmpty = targetTask.title.trim() === "";
-
     if (isTitleEmpty) {
-      // 空なら即削除
       setTasks((prev) => prev.filter((t) => t.id !== id));
     } else {
-      // 入力済みなら確認を出す
-      if (
-        window.confirm(
-          `タスク「${targetTask.title}」を完全に削除してもよろしいですか？`,
-        )
-      ) {
+      const msg =
+        lang === "ja"
+          ? `タスク「${targetTask.title}」を完全に削除してもよろしいですか？`
+          : `Are you sure you want to delete "${targetTask.title}"?`;
+      if (window.confirm(msg)) {
         setTasks((prev) => prev.filter((t) => t.id !== id));
       }
     }
   };
 
-  // 結果画面への遷移ロジック
   const handleGoToResult = async () => {
-    // タイトルがあるものだけを抽出
     const validTasks = tasks.filter((t) => t.title.trim());
 
     if (validTasks.length === 0) {
-      alert("有効なタスク（タイトル）がありません。");
+      alert(i18n.emptyAlert);
       return;
     }
 
-    // 未入力タスクが混ざっている場合の確認
     if (validTasks.length < tasks.length) {
-      const hasConfirmed = window.confirm(
-        "タイトル未入力のタスクは除外されますが、よろしいですか？",
-      );
-      if (!hasConfirmed) return;
+      if (!window.confirm(i18n.confirmDiscard)) return;
     }
 
-    // --- ここから解析演出 ---
     setIsAnalyzing(true);
 
-    // 有効なタスクのみを保存（未入力はここで切り捨てる）
     localStorage.setItem("tasks", JSON.stringify(validTasks));
     localStorage.setItem("appraisalMode", appraisalMode);
     localStorage.setItem("isDarkMode", JSON.stringify(isDarkMode));
+    localStorage.setItem("appLang", lang); // 👈 遷移直前にも念のため保存
 
-    // 1.5秒の待機演出
     await new Promise((resolve) => setTimeout(resolve, 1500));
     router.push("/result");
   };
 
-  // 🎨 テーマ定義
   const theme = {
     bg: isDarkMode ? "#0f172a" : "#f8fafc",
     text: isDarkMode ? "#f8fafc" : "#0f172a",
@@ -127,7 +165,32 @@ export default function HomePage() {
         fontFamily: "Inter, system-ui, sans-serif",
       }}
     >
-      {/* 🚀 最適化演出オーバーレイ */}
+      {/* 言語切り替えスイッチ */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          padding: "10px 20px",
+        }}
+      >
+        <button
+          onClick={toggleLang}
+          style={{
+            backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "#f1f5f9",
+            color: isDarkMode ? "#f8fafc" : "#0f172a",
+            border: "none",
+            padding: "6px 12px",
+            borderRadius: "20px",
+            fontSize: "12px",
+            fontWeight: "bold",
+            cursor: "pointer",
+            transition: "all 0.2s",
+          }}
+        >
+          {lang === "ja" ? "English 🇺🇸" : "日本語 🇯🇵"}
+        </button>
+      </div>
+
       {isAnalyzing && (
         <aside
           style={{
@@ -144,7 +207,8 @@ export default function HomePage() {
             backdropFilter: "blur(8px)",
           }}
         >
-          <div style={{ display: "flex", gap: "5px", marginBottom: "20px" }}>
+          {/* 👇 ここが消えていた3本のバーです */}
+          <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
@@ -153,12 +217,13 @@ export default function HomePage() {
                   height: "40px",
                   backgroundColor: theme.accent,
                   borderRadius: "5px",
-                  animation: "wave 1s ease-in-out infinite",
+                  animation: "wave 1s ease-in-out infinite", // 👈 waveアニメーションを適用
                   animationDelay: `${i * 0.1}s`,
                 }}
               />
             ))}
           </div>
+
           <h2
             style={{
               color: theme.accent,
@@ -168,17 +233,20 @@ export default function HomePage() {
               textTransform: "uppercase",
             }}
           >
-            Optimizing Strategic Layers...
+            {lang === "ja"
+              ? "戦略レイヤーを最適化中..."
+              : "Optimizing Strategic Layers..."}
           </h2>
           <p
             style={{
               color: theme.subText,
               fontSize: "0.7rem",
               marginTop: "10px",
-              letterSpacing: "0.1em",
             }}
           >
-            REARRANGING PRIORITIES BASED ON YOUR MODE
+            {lang === "ja"
+              ? "選択したモードに基づいて優先順位を再構成しています"
+              : "REARRANGING PRIORITIES BASED ON YOUR MODE"}
           </p>
         </aside>
       )}
@@ -207,15 +275,11 @@ export default function HomePage() {
               textAlign: "center",
               marginBottom: 8,
               color: isDarkMode ? theme.accent : "#0f172a",
-              letterSpacing: "0.1em",
               fontSize: "2.5rem",
               fontWeight: "900",
-              textShadow: isDarkMode
-                ? "0 0 20px rgba(56, 189, 248, 0.3)"
-                : "none",
             }}
           >
-            STRATEGIC LAYER
+            {i18n.title}
           </h1>
           <p
             style={{
@@ -225,30 +289,20 @@ export default function HomePage() {
               letterSpacing: "0.2em",
             }}
           >
-            COMMAND YOUR PRIORITIES
+            {i18n.subtitle}
           </p>
         </header>
 
-        <section aria-label="Task Deck">
+        <section>
           <div
             style={{
-              maxWidth: "800px", // カードの最大幅と合わせる
-              margin: "0 auto",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "flex-end",
-              marginBottom: "12px", // カードとの隙間
-              padding: "0 10px", // 画面端のゆとり
+              marginBottom: "12px",
             }}
           >
-            <h2
-              style={{
-                margin: 0,
-                fontSize: "0.9rem",
-                color: isDarkMode ? "#94a3b8" : "#64748b",
-                letterSpacing: "0.1em",
-              }}
-            >
+            <h2 style={{ margin: 0, fontSize: "0.9rem", color: theme.subText }}>
               TASK DECK
             </h2>
             <button
@@ -260,13 +314,11 @@ export default function HomePage() {
                 backgroundColor: "#38bdf8",
                 color: "#0f172a",
                 fontWeight: "bold",
-                fontSize: "0.85rem",
                 border: "none",
                 cursor: "pointer",
-                boxShadow: "0 4px 15px rgba(56, 189, 248, 0.2)",
               }}
             >
-              ＋ NEW TASK
+              {i18n.newTask}
             </button>
           </div>
 
@@ -280,14 +332,15 @@ export default function HomePage() {
                 borderRadius: "16px",
               }}
             >
-              タスクがありません。「＋ NEW TASK」から作成してください。
+              {i18n.noTask}
             </div>
           ) : (
-            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 40px 0" }}>
+            <ul style={{ listStyle: "none", padding: 0 }}>
               {tasks.map((task) => (
                 <li key={task.id} style={{ marginBottom: "20px" }}>
                   <TaskCard
                     task={task}
+                    lang={lang}
                     isDarkMode={isDarkMode}
                     onUpdate={updateTask}
                     onRemove={removeTask}
@@ -306,7 +359,6 @@ export default function HomePage() {
               backgroundColor: theme.cardSectionBg,
               borderRadius: "24px",
               border: `1px solid ${theme.border}`,
-              boxShadow: isDarkMode ? "none" : "0 10px 30px rgba(0,0,0,0.05)",
             }}
           >
             <p
@@ -315,12 +367,10 @@ export default function HomePage() {
                 fontWeight: "bold",
                 color: theme.subText,
                 marginBottom: "20px",
-                fontSize: "0.9rem",
               }}
             >
-              最適化アルゴリズムを選択
+              {i18n.algoTitle}
             </p>
-
             <nav style={{ display: "flex", gap: "8px", marginBottom: "25px" }}>
               {APPRAISAL_OPTIONS.map((m) => (
                 <button
@@ -338,18 +388,15 @@ export default function HomePage() {
                           ? "#1e293b"
                           : "#f1f5f9",
                     color: appraisalMode === m.id ? "white" : theme.subText,
-                    cursor: "pointer",
                     fontWeight: "bold",
-                    transition: "0.2s",
+                    cursor: "pointer",
                   }}
                 >
                   {m.label}
                 </button>
               ))}
             </nav>
-
             <button
-              className="btn-shine"
               onClick={handleGoToResult}
               disabled={isAnalyzing}
               style={{
@@ -362,11 +409,9 @@ export default function HomePage() {
                 fontSize: "1.2rem",
                 border: "none",
                 cursor: isAnalyzing ? "not-allowed" : "pointer",
-                boxShadow: "0 10px 25px -5px rgba(0,0,0,0.3)",
-                opacity: isAnalyzing ? 0.7 : 1,
               }}
             >
-              {isAnalyzing ? "OPTIMIZING..." : APPRAISAL_LABELS[appraisalMode]}
+              {isAnalyzing ? i18n.analyzing : APPRAISAL_LABELS[appraisalMode]}
             </button>
           </footer>
         )}

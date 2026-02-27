@@ -108,3 +108,54 @@ input[type="range"]::-moz-range-track {
 .btn-shine:hover::after {
   left: 100%;
 }
+
+/* --- 6. Custom Slider Thumb (つまみの調整) --- */
+/* Webkit (Chrome, Safari, Edge) */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px; /* つまみを大きく */
+  height: 22px; /* つまみを大きく */
+  background: #ffffff;
+  border: 3px solid var(--color-accent); /* 水色の縁取り */
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  /* 溝（10px）の中央に配置するための計算: (Thumb 22px - Track 10px) / 2 = 6px */
+  margin-top: -6px;
+  transition: transform 0.1s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+/* Firefox */
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  border: 3px solid var(--color-accent);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* --- 7. List Animation (結果ページのふわっと演出) --- */
+.fade-in-up {
+  opacity: 0;
+  animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+    filter: blur(4px); /* 少しぼかすとお洒落です */
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
